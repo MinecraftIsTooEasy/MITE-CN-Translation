@@ -1,0 +1,44 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get timestamp
+        id: ts
+        run: echo "value=$(date -u +'%Y-%m-%d-%H%M%S')" >> "$GITHUB_OUTPUT"
+
+      - name: Build resource packs
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          rm -f ./*.zip
+          for dir in zh*/; do
+            name="${dir%/}"
+            [ -f "${dir}MITE.lang" ] || continue
+            mkdir -p build_assets/assets/minecraft/lang
+            cp "${dir}MITE.lang" build_assets/assets/minecraft/lang/MITE.lang
+            (cd build_assets && zip -r "../${name}.zip" assets pack.mcmeta pack.png)
+          done
+          ls -l ./*.zip
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ts.outputs.value }}
+          name: ${{ steps.ts.outputs.value }}
+          files: |
+            *.zip
