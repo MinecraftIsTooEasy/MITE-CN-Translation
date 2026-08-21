@@ -1,0 +1,77 @@
+name: Mirror to Gitee
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: Gitee-mirror
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    name: Push repository mirror
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the complete repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify GITEE token is configured
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$GITEE_TOKEN" ]; then
+            echo "Missing required repository secret: GITEE_TOKEN" >&2
+            exit 1
+          fi
+
+      - name: Mirror branches and tags to GITEE
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          GITEE_REPOSITORY: https://gitee.org/postyizhan/MITE-CN-Translation.git
+          GITEE_USERNAME: postyizhan
+        run: |
+          set -euo pipefail
+
+          # Keep the token out of the remote URL and out of the git config.
+          askpass_script="$(mktemp)"
+          trap 'rm -f "$askpass_script"' EXIT
+          cat >"$askpass_script" <<'ASKPASS'
+          #!/usr/bin/env sh
+          case "$1" in
+            *[Uu]sername*)
+              printf '%s\n' "$GITEE_USERNAME"
+              ;;
+            *[Pp]assword*)
+              printf '%s\n' "$GITEE_TOKEN"
+              ;;
+            *)
+              printf '%s\n' "$GITEE_TOKEN"
+              ;;
+          esac
+          ASKPASS
+          chmod 700 "$askpass_script"
+
+          git remote add GITEE "$GITEE_REPOSITORY"
+
+          # Fetch every source branch into a separate namespace so the
+          # currently checked-out branch cannot hide other branches.
+          git fetch --prune origin \
+            '+refs/heads/*:refs/mirror/heads/*' \
+            '+refs/tags/*:refs/tags/*'
+
+          export GIT_ASKPASS="$askpass_script"
+          export GIT_TERMINAL_PROMPT=0
+
+          # The leading '+' permits the GITEE mirror to follow source-side
+          # force-pushes. --prune removes branches and tags deleted on GitHub.
+          git push --prune GITEE \
+            '+refs/mirror/heads/*:refs/heads/*' \
+            '+refs/tags/*:refs/tags/*'
