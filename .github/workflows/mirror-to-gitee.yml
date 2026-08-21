@@ -35,7 +35,7 @@ jobs:
       - name: Mirror branches and tags to GITEE
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
-          GITEE_REPOSITORY: https://gitee.org/postyizhan/MITE-CN-Translation.git
+          GITEE_REPOSITORY: https://gitee.com/postyizhan/MITE-CN-Translation.git
           GITEE_USERNAME: postyizhan
         run: |
           set -euo pipefail
